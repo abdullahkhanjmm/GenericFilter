@@ -15,7 +15,7 @@ namespace GenericFilter.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetProducts([FromQuery] PaginationFilter filter)
+        public async Task<IActionResult> GetProducts([FromQuery] QueryParameters filter)
         {
             var products = await _productRepository.GetProductsAsync(filter);
             return Ok(products);

@@ -2,6 +2,6 @@
 {
     public interface IProductRepository
     {
-        Task<IEnumerable<Product>> GetProductsAsync(PaginationFilter filter);
+        Task<IEnumerable<Product>> GetProductsAsync(QueryParameters filter);
     }
 }

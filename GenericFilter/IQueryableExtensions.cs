@@ -5,93 +5,75 @@ namespace GenericFilter
 {
     public static class IQueryableExtensions
     {
-        public static IQueryable<T> Process<T>(this IQueryable<T> queryable, PaginationFilter filter)
+        public static IQueryable<T> ApplyQueryParameters<T>(this IQueryable<T> query, QueryParameters parameters)
         {
-            // Apply filtering
-            if (!string.IsNullOrEmpty(filter.filterBy))
+            if (parameters.FilterBy != null && !string.IsNullOrWhiteSpace(parameters.FilterValue))
             {
-                var filterExpression = CreateFilterExpression<T>(filter.filterBy);
-                queryable = queryable.AsEnumerable().Where(filterExpression.Compile()).AsQueryable();
+                query = ApplyFilters(query, parameters.FilterBy, parameters.FilterValue, parameters.FilterOperation);
             }
 
-            // Apply sorting
-            if (!string.IsNullOrEmpty(filter.orderby))
+            if (!string.IsNullOrWhiteSpace(parameters.SortBy))
             {
-                queryable = queryable.OrderBy(filter.orderby);
+                query = ApplySorting(query, parameters.SortBy, parameters.IsAscending);
             }
 
-            // Apply pagination
-            var skip = (filter.pageNumber - 1) * filter.pageSize;
-            queryable = queryable.Skip(skip).Take(filter.pageSize);
-
-            return queryable;
+            return query.Skip((parameters.PageNumber - 1) * parameters.PageSize)
+                        .Take(parameters.PageSize);
         }
 
-        private static Expression<Func<T, bool>> CreateFilterExpression<T>(string filterBy)
+        private static IQueryable<T> ApplyFilters<T>(IQueryable<T> query, List<string> filterBy, string filterValue, FilterOperations filterOperation)
         {
-            var parts = filterBy.Split('=');
-            if (parts.Length != 2)
-                throw new ArgumentException("Invalid filter format. Expected 'PropertyName=value'.");
+            var parameter = Expression.Parameter(typeof(T), "p");
 
-            var propertyName = parts[0];
-            var value = parts[1];
-
-            var type = typeof(T);
-            var property = type.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
-            if (property == null)
-                throw new ArgumentException($"No property '{propertyName}' found on type '{type.Name}'.");
-
-            var parameter = Expression.Parameter(typeof(T), "x");
-            var propertyAccess = Expression.Property(parameter, property);
-            Expression equals;
-
-            if (property.PropertyType == typeof(string))
+            foreach (var propertyName in filterBy)
             {
-                var method = typeof(string).GetMethod("Equals", new[] { typeof(string), typeof(StringComparison) });
-                var constant = Expression.Constant(value, typeof(string));
-                var comparisonType = Expression.Constant(StringComparison.OrdinalIgnoreCase);
-                equals = Expression.Call(propertyAccess, method, constant, comparisonType);
-            }
-            else
-            {
-                // For other types, compare directly
-                var constant = Expression.Constant(Convert.ChangeType(value, property.PropertyType));
-                equals = Expression.Equal(propertyAccess, constant);
+                var property = typeof(T).GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+                if (property == null)
+                {
+                    throw new ArgumentException($"Property '{propertyName}' does not exist on type '{typeof(T).Name}'.");
+                }
+
+                var propertyAccess = Expression.MakeMemberAccess(parameter, property);
+                var constant = Expression.Constant(filterValue);
+
+                Expression comparison = filterOperation switch
+                {
+                    FilterOperations.Equals => Expression.Equal(propertyAccess, constant),
+                    FilterOperations.NotEquals => Expression.NotEqual(propertyAccess, constant),
+                    FilterOperations.Contains => Expression.Call(propertyAccess, "Contains", null, constant),
+                    FilterOperations.StartsWith => Expression.Call(propertyAccess, "StartsWith", null, constant),
+                    FilterOperations.EndsWith => Expression.Call(propertyAccess, "EndsWith", null, constant),
+                    FilterOperations.GreaterThan => Expression.GreaterThan(propertyAccess, constant),
+                    FilterOperations.LessThan => Expression.LessThan(propertyAccess, constant),
+                    FilterOperations.GreaterThanOrEqual => Expression.GreaterThanOrEqual(propertyAccess, constant),
+                    FilterOperations.LessThanOrEqual => Expression.LessThanOrEqual(propertyAccess, constant),
+                    _ => throw new ArgumentException("Invalid filter operation")
+                };
+
+                var lambda = Expression.Lambda<Func<T, bool>>(comparison, parameter);
+                query = query.Where(lambda);
             }
 
-            return Expression.Lambda<Func<T, bool>>(equals, parameter);
+            return query;
         }
 
 
-
-        private static IQueryable<T> OrderBy<T>(this IQueryable<T> source, string orderByProperty)
+        private static IQueryable<T> ApplySorting<T>(IQueryable<T> query, string sortBy, bool isAscending)
         {
             var type = typeof(T);
-
-            // Determine the sorting direction
-            var ascending = true;
-            var parts = orderByProperty.Split(' ');
-            var propertyName = parts[0];
-            if (parts.Length > 1 && parts[1].Equals("desc", StringComparison.OrdinalIgnoreCase))
-            {
-                ascending = false;
-            }
-
-            var property = type.GetProperty(propertyName, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
+            var property = type.GetProperty(sortBy, BindingFlags.IgnoreCase | BindingFlags.Public | BindingFlags.Instance);
             if (property == null)
-                throw new ArgumentException($"No property '{propertyName}' found on type '{type.Name}'.");
+                throw new ArgumentException($"No property '{sortBy}' found on type '{type.Name}'.");
 
             var parameter = Expression.Parameter(type, "p");
             var propertyAccess = Expression.MakeMemberAccess(parameter, property);
             var orderByExpression = Expression.Lambda(propertyAccess, parameter);
 
-            // Use OrderBy or OrderByDescending based on the direction
-            var resultExpression = ascending
-                ? Expression.Call(typeof(Queryable), "OrderBy", new[] { type, property.PropertyType }, source.Expression, Expression.Quote(orderByExpression))
-                : Expression.Call(typeof(Queryable), "OrderByDescending", new[] { type, property.PropertyType }, source.Expression, Expression.Quote(orderByExpression));
+            var methodName = isAscending ? "OrderBy" : "OrderByDescending";
+            var resultExpression = Expression.Call(typeof(Queryable), methodName, new Type[] { type, property.PropertyType }, query.Expression, Expression.Quote(orderByExpression));
 
-            return source.Provider.CreateQuery<T>(resultExpression);
+            return query.Provider.CreateQuery<T>(resultExpression);
         }
-
     }
+
 }

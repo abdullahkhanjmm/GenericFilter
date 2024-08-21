@@ -11,12 +11,12 @@ namespace GenericFilter
             _context = context;
         }
 
-        public async Task<IEnumerable<Product>> GetProductsAsync(PaginationFilter filter)
+        public async Task<IEnumerable<Product>> GetProductsAsync(QueryParameters filter)
         {
             var query = _context.Products.AsQueryable();
 
             // Apply filtering, sorting, and pagination
-            query = query.Process(filter);
+            query = query.ApplyQueryParameters(filter);
 
             return query.ToList();
         }
