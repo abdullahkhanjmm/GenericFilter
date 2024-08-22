@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using GenericFilter.DTOs.Inputs;
+using GenericFilter.Repositories;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GenericFilter.Controllers

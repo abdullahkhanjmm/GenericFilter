@@ -1,7 +1,8 @@
 ﻿using System.Linq.Expressions;
 using System.Reflection;
+using GenericFilter.DTOs.Inputs;
 
-namespace GenericFilter
+namespace GenericFilter.Utils
 {
     public static class IQueryableExtensions
     {

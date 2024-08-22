@@ -1,6 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using GenericFilter.DTOs.Inputs;
+using GenericFilter.Models;
+using GenericFilter.Utils;
+using Microsoft.EntityFrameworkCore;
 
-namespace GenericFilter
+namespace GenericFilter.Repositories
 {
     public class ProductRepository : IProductRepository
     {

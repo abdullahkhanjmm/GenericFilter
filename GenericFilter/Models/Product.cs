@@ -1,4 +1,4 @@
-﻿namespace GenericFilter
+﻿namespace GenericFilter.Models
 {
     public class Product
     {

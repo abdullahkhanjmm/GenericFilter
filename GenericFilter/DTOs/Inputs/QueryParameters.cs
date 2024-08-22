@@ -1,4 +1,4 @@
-﻿namespace GenericFilter
+﻿namespace GenericFilter.DTOs.Inputs
 {
     public class QueryParameters
     {
